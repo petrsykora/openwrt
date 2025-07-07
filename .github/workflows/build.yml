@@ -1,0 +1,45 @@
+name: Build OpenWRT with Suricata for Orange Pi Zero 3
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build OpenWRT Image
+    steps:
+      - name: Checkout OpenWRT source
+        uses: actions/checkout@v3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses-dev \
+            libssl-dev python3-distutils rsync unzip zlib1g-dev
+
+      - name: Clone OpenWRT
+        run: |
+          git clone https://github.com/openwrt/openwrt.git openwrt
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          echo "src-git suricata https://github.com/seanlinmt/suricata" >> feeds.conf.default
+          ./scripts/feeds update suricata
+          ./scripts/feeds install -p suricata -a
+
+      - name: Copy custom .config
+        run: |
+          cp $GITHUB_WORKSPACE/.config openwrt/.config
+
+      - name: Build image
+        run: |
+          cd openwrt
+          make defconfig
+          make -j$(nproc)
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: openwrt-orangepi-zero3-suricata
+          path: openwrt/bin/targets/sunxi/cortexa53/
